@@ -1,0 +1,19 @@
+namespace: sovereign-ai
+
+ollama:
+  image:
+    repository: ollama/ollama
+    tag: latest
+  hostModelPath: /usr/share/ollama/.ollama
+  service:
+    port: 11434
+  gpu:
+    count: 1
+
+openwebui:
+  image:
+    repository: ghcr.io/open-webui/open-webui
+    tag: latest
+  service:
+    port: 8080
+    nodePort: 30080

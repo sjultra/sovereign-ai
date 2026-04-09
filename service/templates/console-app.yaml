@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: console
+  namespace: {{ .Values.namespace }}
+
+---
+
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: console-env
+  namespace: {{ .Values.namespace }}
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-store
+  target:
+    name: console-env
+    creationPolicy: Owner
+  data:
+    - secretKey: CORE_URL
+      remoteRef:
+        key: app/{{ .Values.console.name }}/{{ .Values.env }}
+        property: CORE_URL
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openwebui
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: openwebui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openwebui
+  template:
+    metadata:
+      labels:
+        app: openwebui
+    spec:
+      containers:
+        - name: openwebui
+          image: "{{ .Values.openwebui.image.repository }}:{{ .Values.openwebui.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.openwebui.service.port }}
+          env:
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama:{{ .Values.ollama.service.port }}"
+            - name: WEBUI_AUTH
+              value: "false"
+            - name: ENABLE_SIGNUP
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.openwebui.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.openwebui.service.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openwebui
+  labels:
+    app: openwebui
+spec:
+  type: {{ .Values.openwebui.service.type }}
+  selector:
+    app: openwebui
+  ports:
+    - port: {{ .Values.openwebui.service.port }}
+      targetPort: {{ .Values.openwebui.service.port }}
+      protocol: TCP

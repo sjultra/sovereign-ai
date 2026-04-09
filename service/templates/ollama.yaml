@@ -1,0 +1,168 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: core
+  namespace: {{ .Values.namespace }}
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: core-env
+  namespace: {{ .Values.namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-store
+  target:
+    name: core-env
+    creationPolicy: Owner
+  data:
+    - secretKey: NODE_ENV
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: NODE_ENV
+
+    - secretKey: DEBUG
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: DEBUG
+    
+    - secretKey: BASE_URL
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: BASE_URL
+    
+    - secretKey: CONSOLE_URL
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: CONSOLE_URL
+
+    - secretKey: DB_NAME
+      remoteRef:
+        key: app/postgres-core/{{ .Values.env }}
+        property: DB_NAME
+    
+    - secretKey: DB_USERNAME
+      remoteRef:
+        key: app/postgres-core/{{ .Values.env }}
+        property: DB_USERNAME
+
+    - secretKey: DB_PASSWORD
+      remoteRef:
+        key: app/postgres-core/{{ .Values.env }}
+        property: DB_PASSWORD
+
+    - secretKey: SESSION_SECRET
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: SESSION_SECRET
+
+    - secretKey: DATADOG_API_KEY
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: DATADOG_API_KEY
+
+    - secretKey: DATADOG_APP_KEY
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: DATADOG_APP_KEY
+    
+    - secretKey: DATADOG_UNSCOPED_APP_KEY
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: DATADOG_UNSCOPED_APP_KEY
+
+    - secretKey: RANCHER_API_TOKEN
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: RANCHER_API_TOKEN
+
+    - secretKey: SALT_USER
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: SALT_USER
+
+    - secretKey: SALT_PASSWORD
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: SALT_PASSWORD
+    
+    - secretKey: KEYCLOAK_ISSUER
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: KEYCLOAK_ISSUER
+    
+    - secretKey: KEYCLOAK_CLIENT_ID
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: KEYCLOAK_CLIENT_ID
+    
+    - secretKey: KEYCLOAK_CLIENT_SECRET
+      remoteRef:
+        key: app/{{ .Values.api.name }}/{{ .Values.env }}
+        property: KEYCLOAK_CLIENT_SECRET
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: "{{ .Values.ollama.image.repository }}:{{ .Values.ollama.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.ollama.service.port }}
+          resources:
+            limits:
+              nvidia.com/gpu: {{ .Values.ollama.gpu.count | quote }}
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: {{ .Values.ollama.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: {{ .Values.ollama.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: ollama-data
+          hostPath:
+            path: {{ .Values.ollama.hostModelPath }}
+            type: 
+            
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+    - port: {{ .Values.ollama.service.port }}
+      targetPort: {{ .Values.ollama.service.port }}
+      protocol: TCP

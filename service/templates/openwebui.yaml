@@ -31,14 +31,16 @@ spec:
             httpGet:
               path: /
               port: {{ .Values.openwebui.service.port }}
-            initialDelaySeconds: 15
-            periodSeconds: 5
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12
           livenessProbe:
             httpGet:
               path: /
               port: {{ .Values.openwebui.service.port }}
-            initialDelaySeconds: 20
+            initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 12
 
 ---
 apiVersion: v1

@@ -17,3 +17,5 @@ openwebui:
   service:
     port: 8080
     nodePort: 30080
+  ingress:
+    host: ai.prdc.vzxy.net

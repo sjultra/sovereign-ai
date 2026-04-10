@@ -18,4 +18,4 @@ openwebui:
     port: 8080
     nodePort: 30080
   ingress:
-    host: ai.prdc.vzxy.net
+    host: ai.centr-usscz01-k3s-c01-01.vzxy.net

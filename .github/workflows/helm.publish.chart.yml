@@ -1,0 +1,42 @@
+name: Publish Helm chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "service/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: oci://ghcr.io/sjultra/charts
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Lint
+        run: helm lint service
+
+      - name: Package and push (skip if this version is already published)
+        run: |
+          NAME=$(yq '.name' service/Chart.yaml)
+          VERSION=$(yq '.version' service/Chart.yaml)
+          if helm show chart "$REGISTRY/$NAME" --version "$VERSION" >/dev/null 2>&1; then
+            echo "::notice::$NAME $VERSION is already published; bump version in service/Chart.yaml to publish"
+            exit 0
+          fi
+          helm package service
+          helm push "$NAME-$VERSION.tgz" "$REGISTRY"

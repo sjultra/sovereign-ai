@@ -66,16 +66,12 @@ spec:
   selector:
     app: openwebui
   ports:
-    - name: https
-      protocol: TCP
-      port: 443
-      targetPort: {{ .Values.openwebui.service.port }}
-      nodePort: 30443
-    - name: http
+    - name: http          # LAN access at http://<node-ip>:<nodePort>; public traffic goes nginx → Traefik → Ingress
       protocol: TCP
       port: 80
       targetPort: {{ .Values.openwebui.service.port }}
       nodePort: {{ .Values.openwebui.service.nodePort }}
+{{- if .Values.openwebui.ingress.enabled }}
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -83,11 +79,10 @@ kind: Ingress
 metadata:
   name: openwebui
   annotations:
-    kubernetes.io/ingress.class: "traefik"
-    traefik.ingress.kubernetes.io/redirect-entry-point: "https" # ssl terminated by nginx on host
+    kubernetes.io/ingress.class: "traefik"  # TLS is terminated by nginx on the proxy host, which forwards to Traefik
 spec:
   rules:
-    - host: {{ .Values.openwebui.ingress.host }}
+    - host: {{ required "openwebui.ingress.host is required when openwebui.ingress.enabled is true" .Values.openwebui.ingress.host }}
       http:
         paths:
           - path: /
@@ -97,3 +92,4 @@ spec:
                 name: openwebui
                 port:
                   number: 80
+{{- end }}

@@ -31,9 +31,10 @@ openwebui:
     pullPolicy: IfNotPresent
   service:
     port: 8080
-    nodePort: 30080
+    nodePort: 30080                       # LAN access: http://<any-node-ip>:30080
   ingress:
-    host: ai.centr-usscz01-k3s-c01-01.vzxy.net
+    enabled: false                        # true = public at https://<host>; TLS is terminated by nginx on the proxy host
+    host: ""                              # e.g. chat.centr-usscz01-k3s-c01-01.portalrobotics.com; required when enabled
 
   # deployment target(s)
   nodeSelector: {}

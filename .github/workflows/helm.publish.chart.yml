@@ -30,13 +30,24 @@ jobs:
       - name: Lint
         run: helm lint service
 
-      - name: Package and push (skip if this version is already published)
+      - name: Check version
+        id: chart
         run: |
           NAME=$(yq '.name' service/Chart.yaml)
           VERSION=$(yq '.version' service/Chart.yaml)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if helm show chart "$REGISTRY/$NAME" --version "$VERSION" >/dev/null 2>&1; then
             echo "::notice::$NAME $VERSION is already published; bump version in service/Chart.yaml to publish"
-            exit 0
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
           fi
-          helm package service
-          helm push "$NAME-$VERSION.tgz" "$REGISTRY"
+
+      - name: Package
+        if: steps.chart.outputs.published == 'false'
+        run: helm package service
+
+      - name: Push
+        if: steps.chart.outputs.published == 'false'
+        run: helm push "${{ steps.chart.outputs.name }}-${{ steps.chart.outputs.version }}.tgz" "$REGISTRY"

@@ -1,3 +1,7 @@
+{{- $source := .Values.ollama.models.source }}
+{{- if not (has $source (list "pvc" "hostPath")) }}
+{{- fail (printf "ollama.models.source must be \"pvc\" or \"hostPath\", got %q" $source) }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,6 +10,8 @@ metadata:
     app: ollama
 spec:
   replicas: 1
+  strategy:
+    type: Recreate          # the GPU and the model volume can't be shared with a second pod during a rollout
   selector:
     matchLabels:
       app: ollama
@@ -14,17 +20,50 @@ spec:
       labels:
         app: ollama
     spec:
+      {{- with .Values.ollama.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.ollama.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ollama.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ollama.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: ollama
           image: "{{ .Values.ollama.image.repository }}:{{ .Values.ollama.image.tag }}"
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.ollama.service.port }}
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: {{ .Values.ollama.keepAlive | quote }}
           resources:
             limits:
               nvidia.com/gpu: {{ .Values.ollama.gpu.count | quote }}
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
+          {{- with .Values.ollama.preload }}
+          # probes start only after postStart finishes, so the pod is Ready once the models are in GPU memory
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    until ollama list >/dev/null 2>&1; do sleep 1; done
+                    {{- range . }}
+                    ollama run {{ . | quote }} "" </dev/null
+                    {{- end }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /api/tags
@@ -39,10 +78,15 @@ spec:
             periodSeconds: 10
       volumes:
         - name: ollama-data
+          {{- if eq $source "hostPath" }}
           hostPath:
-            path: {{ .Values.ollama.hostModelPath }}
-            type: 
-            
+            path: {{ .Values.ollama.models.hostPath }}
+            type: Directory  # a missing directory fails with an event instead of starting with no models
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: ollama-models
+          {{- end }}
+
 ---
 apiVersion: v1
 kind: Service
@@ -57,3 +101,23 @@ spec:
     - port: {{ .Values.ollama.service.port }}
       targetPort: {{ .Values.ollama.service.port }}
       protocol: TCP
+{{- if eq $source "pvc" }}
+
+---
+# only rendered for source=pvc: switching to hostPath deletes this PVC and the models downloaded into it
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  labels:
+    app: ollama
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with .Values.ollama.models.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.ollama.models.persistence.size }}
+{{- end }}

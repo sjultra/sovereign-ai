@@ -1,4 +1,4 @@
 apiVersion: v2
 name: sovereign-ai-chart
-version: 0.1.0
+version: 0.2.0
 description: A Helm chart for deploying a local LLM with OpenwebUI as a chat interface

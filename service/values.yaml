@@ -3,19 +3,39 @@ namespace: sovereign-ai
 ollama:
   image:
     repository: ollama/ollama
-    tag: latest
-  hostModelPath: /usr/share/ollama/.ollama
+    tag: "0.40.13"                        # pinned (not `latest`) so preloaded images are reused
+    pullPolicy: IfNotPresent
+  runtimeClassName: nvidia                # GPU pods need the nvidia runtime (k3s's default is runc)
   service:
     port: 11434
   gpu:
     count: 1
+  models:
+    source: pvc                           # pvc = download on demand | hostPath = preloaded on the node
+    hostPath: /usr/share/ollama/.ollama   # used when source=hostPath
+    persistence:                          # used when source=pvc
+      storageClass: local-path
+      size: 100Gi
+  keepAlive: "-1"                         # OLLAMA_KEEP_ALIVE: keep loaded models in GPU memory
+  preload: []                             # models loaded before the pod is Ready, e.g. ["llama3.1:8b"]
+
+  # deployment target(s)
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
 
 openwebui:
   image:
     repository: ghcr.io/open-webui/open-webui
-    tag: latest
+    tag: "v0.12.5"                        # pinned (not `latest`)
+    pullPolicy: IfNotPresent
   service:
     port: 8080
     nodePort: 30080
   ingress:
     host: ai.centr-usscz01-k3s-c01-01.vzxy.net
+
+  # deployment target(s)
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []

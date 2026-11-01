@@ -1,4 +1,7 @@
-name: Publish Helm chart
+# Lints the Helm chart and publishes it to GHCR.
+# Runs on push to main or manual dispatch.
+
+name: "Publish Helm chart"
 
 on:
   push:
